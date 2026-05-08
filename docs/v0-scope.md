@@ -332,7 +332,7 @@ type AssessRetrofitLevelOutput = {
 {
   "name": "assess_retrofit_level",
   "arguments": {
-    "file_path": "/Users/seanwinslow/Code-Brain/claude-code-superuser-pack/.claude/skills/format-on-edit/SKILL.md"
+    "file_path": "/Users/seanwinslow/Code-Brain/claude-code-superuser-pack/.claude/skills/personal-task-management/SKILL.md"
   }
 }
 ```
@@ -341,19 +341,19 @@ type AssessRetrofitLevelOutput = {
 
 ```json
 {
-  "current_state": "A single-purpose skill that runs prettier/eslint on edited files via a PostToolUse hook. Has clear instructions but no objective, outcomes, or stop rules.",
+  "current_state": "Prompt or SKILL.md without explicit 9-section intent structure (no Objective / Desired Outcomes / Stop Rules headings detected). Approximately 116 lines of content; complexity is multi-step; blast radius is low.",
   "recommended_level": "L1-mvr",
-  "reasoning": "Single-step skill, low blast radius (formatting changes are reversible via git), and the existing instructions are concise and correct. Level 1 adds objective + outcomes + stop rules in 30 minutes without disturbing the working hook logic. Level 2 would be over-engineering for a deterministic linter wrapper.",
+  "reasoning": "Compact skill with low blast radius — Level 1 adds Objective + Desired Outcomes + Stop Rules in ~30 minutes without disturbing existing instructions. Higher levels would be over-engineering for this surface area; the existing logic is fine, the spec just needs an intent header.",
   "estimated_time": "30 min",
   "blast_radius": "low",
-  "complexity": "single-step",
-  "autonomy_assumed": "full-autonomous",
+  "complexity": "multi-step",
+  "autonomy_assumed": "proposal-first",
   "next_steps": [
-    "Add an Objective section: 'Keep the working tree consistently formatted, so diffs reflect logic changes only.'",
-    "Add Desired Outcomes: 'Edited files pass prettier with no further changes; no formatting-only commits appear in git history.'",
-    "Add Stop Rules: 'Halt if prettier/eslint binaries unavailable; halt if config file is missing.'",
-    "After retrofit, run audit_intent_spec on the updated SKILL.md to confirm the L1 sections score pass.",
-    "Defer L2 promotion until/unless this skill begins running autonomously across multiple repos."
+    "Add an Objective: state the problem (not the solution), name who benefits, and include a trade-off clause.",
+    "Add 2-4 Desired Outcomes as observable states. Test: 'After the agent runs, [STATE] exists.'",
+    "Add Stop Rules: halt_when (critical conditions), escalate_when (confidence thresholds), complete_when (completion criteria).",
+    "After retrofit, run audit_intent_spec on the updated SKILL.md to confirm L1 sections score pass.",
+    "Defer L2 promotion until/unless this skill begins running autonomously or its blast radius grows."
   ]
 }
 ```

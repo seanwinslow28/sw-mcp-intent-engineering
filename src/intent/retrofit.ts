@@ -98,9 +98,9 @@ function detectBlastRadius(text: string): BlastRadius {
 
 function detectComplexity(text: string, spec: ParsedSpec): Complexity {
   if (spec.autonomous) return "autonomous-loop";
-  if (/\b(launchd|cron|scheduled|while\s+true|while\s+1|polling|every\s+\d+\s+(min|hour|day|second))\b/i.test(text))
+  if (/\b(launchd|cron(tab)?|scheduled\s+(at|via|every|on|task|run)|while\s+true|while\s+1|polling\s+(loop|interval)|every\s+\d+\s+(minutes?|hours?|days?|seconds?))\b/i.test(text))
     return "autonomous-loop";
-  if (/\b(daemon|background\s+(agent|process|worker)|service\s+loop)\b/i.test(text))
+  if (/\b(daemon|background\s+(agent|process|worker|service)|infinite\s+loop)\b/i.test(text))
     return "autonomous-loop";
 
   const headingCount = (text.match(/^#{2,6}\s+\w+/gm) ?? []).length;

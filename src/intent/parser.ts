@@ -79,7 +79,7 @@ function isPlaceholderOnly(text: string, items: string[]): boolean {
 }
 
 function detectAutonomous(text: string): boolean {
-  return /\b(launchd|cron|scheduled|autonomous|background\s+agent|while\s+true|while\s+1|every\s+\d+\s+(min|hour|day)|run\s+at\s+\d|6:00\s*AM|loop)\b/i.test(
+  return /\b(launchd|cron(tab)?|scheduled\s+(at|via|every|on|task|run)|fully\s+autonomous|autonomous\s+(agent|skill|run|loop|mode|operation|execution|workflow|trigger)|run\s+autonomously|background\s+(agent|process|worker|daemon|service)|while\s+true|while\s+1|polling\s+(loop|interval)|infinite\s+loop|every\s+\d+\s+(minutes?|hours?|days?|seconds?)|6:00\s*am|zero[\s-]?interaction\s+mandate)\b/i.test(
     text,
   );
 }

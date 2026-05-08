@@ -8,6 +8,25 @@ approval in the repo's `CHANGELOG.md` before code is touched").
 
 ### Changed
 
+- **2026-05-08 — scope-lock §6 example fix + autonomous-detector tightening.**
+  scope-lock §6 example call referenced
+  `.claude/skills/format-on-edit/SKILL.md`, which doesn't exist
+  (`format-on-edit` is a hook, not a skill). Sean approved swapping to
+  `.claude/skills/personal-task-management/SKILL.md`, which fits the §6
+  example's "low blast / L1-mvr" profile. Updating the path also surfaced
+  a parser false-positive: `detectAutonomous` was matching bare `loop`
+  (catching "open loops", "feedback loop", "3-question loop") and bare
+  `autonomous` (catching "autonomous decision"), pushing
+  `personal-task-management` and similar skills to `autonomous-loop`
+  complexity in error. Tightened both `parser.ts` `detectAutonomous` and
+  `retrofit.ts` `detectComplexity` to require co-occurring scheduling
+  signals (`autonomous\s+(agent|skill|run|loop|mode|...)`,
+  `polling\s+(loop|interval)`, `infinite\s+loop`, `every\s+\d+\s+(minutes?|...)`,
+  etc.). Re-ran the §6 example call against personal-task-management; the
+  documented example output now matches the tool's actual output (L1-mvr,
+  low blast, multi-step, proposal-first). No Zod schema change. Approved
+  by Sean in chat 2026-05-08.
+
 - **2026-05-08 — Validation checklist count: 40 → 25.**
   scope-lock §3 and §4 originally described "the 40-item validation
   checklist." The canonical SKILL.md
