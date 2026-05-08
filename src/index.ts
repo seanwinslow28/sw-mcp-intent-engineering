@@ -6,6 +6,11 @@ import {
   AuditIntentSpecInputSchema,
   auditIntentSpec,
 } from "./intent/audit.js";
+import {
+  SCAFFOLD_INPUT_SCHEMA_SHAPE,
+  GenerateIntentSpecScaffoldInputSchema,
+  generateIntentSpecScaffold,
+} from "./intent/scaffold.js";
 
 const server = new McpServer({
   name: "intent-engineering",
@@ -33,6 +38,34 @@ server.registerTool(
           {
             type: "text",
             text: `audit_intent_spec error: ${msg}`,
+          },
+        ],
+      };
+    }
+  },
+);
+
+server.registerTool(
+  "generate_intent_spec_scaffold",
+  {
+    title: "Generate Intent Spec Scaffold",
+    description:
+      "Return the appropriate intent-spec template (blank, Level-1 MVR, or full 9-section) with optional pre-filled objective_hint, autonomy_level, and agent_name. Use this when starting a new agent/skill or retrofitting an existing one.",
+    inputSchema: SCAFFOLD_INPUT_SCHEMA_SHAPE,
+  },
+  async (rawArgs) => {
+    const args = GenerateIntentSpecScaffoldInputSchema.parse(rawArgs);
+    try {
+      const out = generateIntentSpecScaffold(args);
+      return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: `generate_intent_spec_scaffold error: ${msg}`,
           },
         ],
       };
