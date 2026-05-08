@@ -73,7 +73,7 @@ sw-mcp-intent-engineering/
 │       ├── audit.ts                # audit_intent_spec logic
 │       ├── scaffold.ts             # generate_intent_spec_scaffold logic
 │       ├── retrofit.ts             # assess_retrofit_level logic
-│       ├── checklist.ts            # the 40-item validation checklist (constant)
+│       ├── checklist.ts            # the 25-item validation checklist (constant)
 │       ├── anti-patterns.ts        # the 5 fatal anti-patterns (constants + detectors)
 │       └── templates/              # YAML scaffolds (blank / level-1-mvr / full-9-section)
 ├── docs/
@@ -94,7 +94,7 @@ sw-mcp-intent-engineering/
 
 The skill at [`.claude/skills/intent-engineering/SKILL.md`](../../../../.claude/skills/intent-engineering/SKILL.md) is the canonical source for:
 
-- The 40-item validation checklist (sections under "Validation Checklist")
+- The 25-item validation checklist (sections under "Validation Checklist")
 - The 5 fatal anti-patterns (section "The 5 Fatal Anti-Patterns")
 - The 4 retrofit-assessment criteria (section "Prioritization for 107 Skills")
 - The 4 autonomy levels (section "Autonomy Levels")
@@ -141,7 +141,7 @@ The MCP tool result `content` array returns a single `text` block containing JSO
 
 ```ts
 type AuditIntentSpecOutput = {
-  validation_score: string;                          // e.g. "23/40"
+  validation_score: string;                          // e.g. "8/25"
   section_findings: Array<{
     section: "objective" | "user_goal" | "desired_outcomes" | "health_metrics"
            | "strategic_context" | "constraints" | "decision_authority"
@@ -180,7 +180,7 @@ If the input exceeds `max_length` characters from `start_index`, process the chu
 
 ```json
 {
-  "validation_score": "8/40",
+  "validation_score": "8/25",
   "section_findings": [
     {"section": "objective", "status": "warn", "notes": "States the activity ('resolve faster') but no problem framing or trade-off guidance. Cannot resolve ambiguity."},
     {"section": "user_goal", "status": "missing", "notes": "No user-perspective job-to-be-done."},
@@ -204,7 +204,7 @@ If the input exceeds `max_length` characters from `start_index`, process the chu
 
 ### Implementation notes
 
-- The validation checklist constant lives in `src/intent/checklist.ts`. Each of the 40 items is a `{ id, section, predicate }` triple. The `predicate` is a small TS function that returns `pass | warn | missing` for a given parsed spec.
+- The validation checklist constant lives in `src/intent/checklist.ts`. Each of the 25 items is a `{ id, section, predicate }` triple. The `predicate` is a small TS function that returns `pass | warn | missing` for a given parsed spec.
 - The anti-pattern detectors live in `src/intent/anti-patterns.ts`. Each is a function that returns boolean given the parsed spec.
 - Parsing: accept both YAML frontmatter form (per the template) AND markdown-headed form (per existing skill domain examples). Use a permissive parser — if the spec doesn't have a `## Objective` heading, look for the first paragraph as a fallback objective.
 - File reads (`file_path`): use `path.resolve` and validate the resolved path is readable. If the file does not exist or is not readable, return a tool result with `isError: true` and a short message ("File not found at ${path}. Pass spec_text directly or check the path.").
@@ -271,7 +271,7 @@ type GenerateIntentSpecScaffoldOutput = {
     "Fill in the [WHO] and [WHY IT MATTERS] placeholders in the objective.",
     "Replace each desired_outcomes placeholder with a state (not an activity). Test: 'After the agent runs, [STATE] exists.'",
     "Add a halt_when condition specific to ticket-classifier failure modes (e.g., 'product-taxonomy file missing → halt and create error note').",
-    "Once the skill ships, run audit_intent_spec on it to score the Level 1 against the full 40-item checklist. Promote to Level 2 if blast radius grows."
+    "Once the skill ships, run audit_intent_spec on it to score the Level 1 against the full 25-item checklist. Promote to Level 2 if blast radius grows."
   ]
 }
 ```
