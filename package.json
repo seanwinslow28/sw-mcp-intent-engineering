@@ -10,7 +10,8 @@
   },
   "scripts": {
     "build": "tsc && chmod 755 build/index.js",
-    "start": "node build/index.js"
+    "start": "node build/index.js",
+    "prepublishOnly": "! grep -rn 'console\\.log' src/ || (echo 'console.log forbidden in src/' && exit 1)"
   },
   "files": [
     "build"
