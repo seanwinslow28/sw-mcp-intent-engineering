@@ -11,6 +11,11 @@ import {
   GenerateIntentSpecScaffoldInputSchema,
   generateIntentSpecScaffold,
 } from "./intent/scaffold.js";
+import {
+  RETROFIT_INPUT_SCHEMA_SHAPE,
+  AssessRetrofitLevelInputSchema,
+  assessRetrofitLevel,
+} from "./intent/retrofit.js";
 
 const server = new McpServer({
   name: "intent-engineering",
@@ -66,6 +71,34 @@ server.registerTool(
           {
             type: "text",
             text: `generate_intent_spec_scaffold error: ${msg}`,
+          },
+        ],
+      };
+    }
+  },
+);
+
+server.registerTool(
+  "assess_retrofit_level",
+  {
+    title: "Assess Retrofit Level",
+    description:
+      "Look at an existing prompt or SKILL.md and recommend the right retrofit level (L1-mvr / L2-structured / L3-full) with reasoning grounded in the intent-engineering skill's blast-radius / complexity / autonomy framework. Provide either skill_text (raw text) OR file_path (absolute path to an existing SKILL.md or prompt file).",
+    inputSchema: RETROFIT_INPUT_SCHEMA_SHAPE,
+  },
+  async (rawArgs) => {
+    const args = AssessRetrofitLevelInputSchema.parse(rawArgs);
+    try {
+      const out = await assessRetrofitLevel(args);
+      return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: `assess_retrofit_level error: ${msg}`,
           },
         ],
       };
