@@ -68,6 +68,8 @@ You'll get back a score out of 25, a list of detected anti-patterns (this spec h
 
 The canonical `intent-engineering` SKILL.md, audited by its own MCP server, scores **23/25 with zero anti-patterns detected**. Seven sections pass cleanly; two return warnings (outcome measurability and a health-metric behavioral-adjustment phrasing). The tool eats its own dog food and the dog food is mostly nutritious.
 
+At scale: the same server audited all 118 first-party skills in my Claude Code Superuser Pack in under a second. 24% scored L1-mvr (the spec just needs an intent header), 36% scored L2-structured (needs Health Metrics + Decision Authority), and 40% scored L3-full (autonomous-loop or high-blast-radius skills that warrant a 9-section conversion). Zero parse errors across the batch. The full CSV is at `examples/superuser-pack-retrofit-assessment.csv`.
+
 ## Limitations
 
 The v0 audit is opinionated about heading structure. It expects explicit `## Objective` and `## Desired Outcomes` headings to score sections. When tested against four other skills from a 117-skill personal library, the four scored 1/25 each — not because the skills are bad, but because they express intent through different heading vocabularies (`## When to Use`, `## How to Apply`, etc.). This is a v0 design choice, not a bug. A v0.2 enhancement would add a heading-vocabulary mapper so the audit recognizes equivalent sections under different labels.
