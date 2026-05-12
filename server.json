@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "com.seanwinslow/intent-engineering",
-  "description": "MCP server that audits, scaffolds, and triages agent intent specs against a 9-section unified template. Three tools: audit_intent_spec, generate_intent_spec_scaffold, assess_retrofit_level.",
+  "description": "Audit, scaffold, and triage agent intent specs against a 9-section template.",
   "version": "0.1.0",
   "repository": {
     "url": "https://github.com/seanwinslow28/sw-mcp-intent-engineering",
@@ -9,7 +9,7 @@
   },
   "packages": [
     {
-      "registry_type": "npm",
+      "registryType": "npm",
       "identifier": "@swins/intent-engineering-mcp",
       "version": "0.1.0",
       "transport": {
