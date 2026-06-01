@@ -1,5 +1,5 @@
-import { promises as fs } from "node:fs";
 import { z } from "zod";
+import { loadFileSafely } from "./safe-fs.js";
 import { parseIntentSpec, SECTION_KEYS } from "./parser.js";
 import type { ParsedSpec, SectionKey } from "./parser.js";
 
@@ -21,6 +21,7 @@ export const RETROFIT_INPUT_SCHEMA_SHAPE = {
 
 export const AssessRetrofitLevelInputSchema = z
   .object(RETROFIT_INPUT_SCHEMA_SHAPE)
+  .strict()
   .refine(
     ({ skill_text, file_path }) => Boolean(skill_text) !== Boolean(file_path),
     { message: "Provide exactly one of skill_text OR file_path." },
@@ -57,9 +58,7 @@ const TIME_ESTIMATES: Record<RetrofitLevel, string> = {
 async function loadInput(input: AssessRetrofitLevelInput): Promise<string> {
   if (input.skill_text) return input.skill_text;
   if (!input.file_path) throw new Error("No skill_text or file_path provided.");
-  const stat = await fs.stat(input.file_path);
-  if (!stat.isFile()) throw new Error(`Path is not a file: ${input.file_path}`);
-  return fs.readFile(input.file_path, "utf-8");
+  return loadFileSafely(input.file_path);
 }
 
 function presentSectionCount(spec: ParsedSpec): number {

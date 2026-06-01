@@ -37,7 +37,9 @@ export const SCAFFOLD_INPUT_SCHEMA_SHAPE = {
     .optional(),
 };
 
-export const GenerateIntentSpecScaffoldInputSchema = z.object(SCAFFOLD_INPUT_SCHEMA_SHAPE);
+export const GenerateIntentSpecScaffoldInputSchema = z
+  .object(SCAFFOLD_INPUT_SCHEMA_SHAPE)
+  .strict();
 
 export type GenerateIntentSpecScaffoldInput = z.infer<
   typeof GenerateIntentSpecScaffoldInputSchema
