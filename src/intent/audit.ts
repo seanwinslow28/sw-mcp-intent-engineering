@@ -1,5 +1,5 @@
-import { promises as fs } from "node:fs";
 import { z } from "zod";
+import { loadFileSafely } from "./safe-fs.js";
 import { parseIntentSpec, SECTION_KEYS } from "./parser.js";
 import type { ParsedSpec, SectionKey } from "./parser.js";
 import { VALIDATION_CHECKLIST, type ChecklistStatus } from "./checklist.js";
@@ -42,6 +42,7 @@ export const AUDIT_INPUT_SCHEMA_SHAPE = {
 
 export const AuditIntentSpecInputSchema = z
   .object(AUDIT_INPUT_SCHEMA_SHAPE)
+  .strict()
   .refine(
     ({ spec_text, file_path }) => Boolean(spec_text) !== Boolean(file_path),
     { message: "Provide exactly one of spec_text OR file_path." },
@@ -78,9 +79,7 @@ const SECTION_LABELS: Record<SectionKey, string> = {
 async function loadInput(input: AuditIntentSpecInput): Promise<string> {
   if (input.spec_text) return input.spec_text;
   if (!input.file_path) throw new Error("No spec_text or file_path provided.");
-  const stat = await fs.stat(input.file_path);
-  if (!stat.isFile()) throw new Error(`Path is not a file: ${input.file_path}`);
-  return fs.readFile(input.file_path, "utf-8");
+  return loadFileSafely(input.file_path);
 }
 
 function paginate(

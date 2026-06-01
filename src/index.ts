@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { promises as fs } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -16,11 +17,46 @@ import {
   AssessRetrofitLevelInputSchema,
   assessRetrofitLevel,
 } from "./intent/retrofit.js";
+import { SafeFsError } from "./intent/safe-fs.js";
+import {
+  recordInvocation,
+  type AuditInputSource,
+} from "./intent/audit-log.js";
 
 const server = new McpServer({
   name: "intent-engineering",
-  version: "0.1.0",
+  version: "0.1.1",
 });
+
+/**
+ * Best-effort input length for the audit ledger:
+ *   - text input  -> characters supplied by the caller
+ *   - file input  -> bytes on disk (the file already passed the safe-fs guard,
+ *                    so this stat is bounded to <= 1 MiB and side-effect free)
+ * Returns 0 if the size can't be determined. Never throws.
+ */
+async function fileByteLen(filePath: string): Promise<number> {
+  try {
+    return (await fs.stat(filePath)).size;
+  } catch {
+    return 0;
+  }
+}
+
+function errMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/** Shape of the unvalidated args we may inspect when parsing fails. */
+type RawFileArgs = { file_path?: unknown; spec_text?: unknown; skill_text?: unknown };
+
+/** Infer input_source from raw (pre-validation) args for rejection logging. */
+function inferSource(raw: unknown): AuditInputSource {
+  const r = (raw ?? {}) as RawFileArgs;
+  return typeof r.file_path === "string" && r.file_path.length > 0
+    ? "file"
+    : "text";
+}
 
 server.registerTool(
   "audit_intent_spec",
@@ -31,20 +67,52 @@ server.registerTool(
     inputSchema: AUDIT_INPUT_SCHEMA_SHAPE,
   },
   async (rawArgs) => {
-    const args = AuditIntentSpecInputSchema.parse(rawArgs);
+    const tool = "audit_intent_spec";
+    let args;
     try {
-      const out = await auditIntentSpec(args);
-      return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
+      args = AuditIntentSpecInputSchema.parse(rawArgs);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = errMessage(e);
+      await recordInvocation({
+        tool,
+        input_source: inferSource(rawArgs),
+        outcome: "rejected",
+        input_len: 0,
+        reject_reason: msg,
+      });
       return {
         isError: true,
-        content: [
-          {
-            type: "text",
-            text: `audit_intent_spec error: ${msg}`,
-          },
-        ],
+        content: [{ type: "text", text: `${tool} error: ${msg}` }],
+      };
+    }
+
+    const source: AuditInputSource = args.file_path ? "file" : "text";
+    try {
+      const out = await auditIntentSpec(args);
+      await recordInvocation({
+        tool,
+        input_source: source,
+        file_path: args.file_path,
+        input_len: args.file_path
+          ? await fileByteLen(args.file_path)
+          : (args.spec_text?.length ?? 0),
+        outcome: "ok",
+      });
+      return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
+    } catch (e) {
+      const msg = errMessage(e);
+      const rejected = e instanceof SafeFsError;
+      await recordInvocation({
+        tool,
+        input_source: source,
+        file_path: args.file_path,
+        input_len: args.spec_text?.length ?? 0,
+        outcome: rejected ? "rejected" : "error",
+        reject_reason: rejected ? msg : undefined,
+      });
+      return {
+        isError: true,
+        content: [{ type: "text", text: `${tool} error: ${msg}` }],
       };
     }
   },
@@ -59,20 +127,45 @@ server.registerTool(
     inputSchema: SCAFFOLD_INPUT_SCHEMA_SHAPE,
   },
   async (rawArgs) => {
-    const args = GenerateIntentSpecScaffoldInputSchema.parse(rawArgs);
+    const tool = "generate_intent_spec_scaffold";
+    let args;
     try {
-      const out = generateIntentSpecScaffold(args);
-      return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
+      args = GenerateIntentSpecScaffoldInputSchema.parse(rawArgs);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = errMessage(e);
+      await recordInvocation({
+        tool,
+        input_source: "text",
+        outcome: "rejected",
+        input_len: 0,
+        reject_reason: msg,
+      });
       return {
         isError: true,
-        content: [
-          {
-            type: "text",
-            text: `generate_intent_spec_scaffold error: ${msg}`,
-          },
-        ],
+        content: [{ type: "text", text: `${tool} error: ${msg}` }],
+      };
+    }
+
+    try {
+      const out = generateIntentSpecScaffold(args);
+      await recordInvocation({
+        tool,
+        input_source: "text",
+        input_len: args.objective_hint?.length ?? 0,
+        outcome: "ok",
+      });
+      return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
+    } catch (e) {
+      const msg = errMessage(e);
+      await recordInvocation({
+        tool,
+        input_source: "text",
+        input_len: args.objective_hint?.length ?? 0,
+        outcome: "error",
+      });
+      return {
+        isError: true,
+        content: [{ type: "text", text: `${tool} error: ${msg}` }],
       };
     }
   },
@@ -87,20 +180,52 @@ server.registerTool(
     inputSchema: RETROFIT_INPUT_SCHEMA_SHAPE,
   },
   async (rawArgs) => {
-    const args = AssessRetrofitLevelInputSchema.parse(rawArgs);
+    const tool = "assess_retrofit_level";
+    let args;
     try {
-      const out = await assessRetrofitLevel(args);
-      return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
+      args = AssessRetrofitLevelInputSchema.parse(rawArgs);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = errMessage(e);
+      await recordInvocation({
+        tool,
+        input_source: inferSource(rawArgs),
+        outcome: "rejected",
+        input_len: 0,
+        reject_reason: msg,
+      });
       return {
         isError: true,
-        content: [
-          {
-            type: "text",
-            text: `assess_retrofit_level error: ${msg}`,
-          },
-        ],
+        content: [{ type: "text", text: `${tool} error: ${msg}` }],
+      };
+    }
+
+    const source: AuditInputSource = args.file_path ? "file" : "text";
+    try {
+      const out = await assessRetrofitLevel(args);
+      await recordInvocation({
+        tool,
+        input_source: source,
+        file_path: args.file_path,
+        input_len: args.file_path
+          ? await fileByteLen(args.file_path)
+          : (args.skill_text?.length ?? 0),
+        outcome: "ok",
+      });
+      return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
+    } catch (e) {
+      const msg = errMessage(e);
+      const rejected = e instanceof SafeFsError;
+      await recordInvocation({
+        tool,
+        input_source: source,
+        file_path: args.file_path,
+        input_len: args.skill_text?.length ?? 0,
+        outcome: rejected ? "rejected" : "error",
+        reject_reason: rejected ? msg : undefined,
+      });
+      return {
+        isError: true,
+        content: [{ type: "text", text: `${tool} error: ${msg}` }],
       };
     }
   },
