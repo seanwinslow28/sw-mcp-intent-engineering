@@ -42,9 +42,55 @@ See [`docs/SECURITY.md`](docs/SECURITY.md) for the full threat model.
 - `docs/SECURITY.md` — threat model, defenses applied, defenses deferred (with
   rationale), known limitations, references.
 
-## [Unreleased]
+## [0.2.0] — 2026-06-17
+
+Released as 0.2.0 (minor, not patch) because A1 changes the scoring output for
+existing inputs — a non-breaking behavior change with no input/output schema change —
+matching the README's own "v0.2 enhancement" language for the heading-vocabulary mapper.
 
 ### Changed
+
+- **2026-06-17 — A1: heading-vocabulary mapper.** The Markdown section parser
+  (`src/intent/parser.ts`) now recognizes a conservative set of alias headings in
+  addition to the canonical nine, routing them to the canonical sections before
+  scoring: e.g. `## Purpose` / `## When to Use` → Objective, `## Goal` → User Goal,
+  `## Success Criteria` / `## Definition of Done` → Desired Outcomes,
+  `## Context` / `## Background` → Strategic Context,
+  `## Requirements` / `## Important Constraints` → Constraints,
+  `## Error Handling` / `## Exceptions` → Edge Cases,
+  `## Completion` / `## Exit Criteria` / `## Validation` → Stop Rules & Verification.
+  Motivation: real SKILL.md files using different heading vocabulary previously
+  scored `1/25` because *zero* present sections were recognized (README
+  "Limitations", `docs/EXPLANATION.md` "What would break?" #1). Canonical headings
+  always match first (alias entries are appended after canonical ones), so the
+  dogfood self-audit is unaffected — re-verified at **23/25, zero anti-patterns**.
+  Procedural headings that are not true intent equivalents (e.g. `## How to Apply`,
+  `## Instructions`, `## Usage`, `## Examples`) are deliberately left unmapped, and
+  genuinely-absent sections still report `missing` — no invented passing scores.
+  For legibility, when a section is recognized from a non-canonical heading, the
+  audit's per-section `notes` now say so (e.g. `(recognized from heading
+  "## When to Use")`). **No input/output schema change** — `validation_score`,
+  `section_findings`, and the rest keep their exact shapes; only score values and
+  free-text `notes` content change. **No tool-count change** (still 3). Approved by
+  Sean in chat 2026-06-17, before code was written.
+
+- **2026-06-17 — A3: pagination boundary regression test (test-only).** Added a
+  `node:test` case (`src/intent/parser.test.ts`) exercising `audit_intent_spec`
+  pagination (`start_index` + `max_length`) when a section heading straddles a chunk
+  boundary, confirming the documented behavior (`docs/EXPLANATION.md` #3): the split
+  section reports `missing` within the truncated chunk and the model aggregates
+  across calls. No code, schema, or output-shape change. Approved by Sean in chat
+  2026-06-17.
+
+- **2026-06-17 — A2: schema-drift snapshot tripwire (test-only).** Added
+  `src/intent/checklist.test.ts`, a `node:test` that snapshots the contract
+  constants: `VALIDATION_CHECKLIST` length (25) and its 25 item ids in source order,
+  `ANTI_PATTERN_IDS` length (5), and that `ANTI_PATTERN_DETECTORS` keys exactly equal
+  `ANTI_PATTERN_IDS` (detectors and ids can't drift apart). The point is a loud
+  tripwire: any accidental edit to the checklist or anti-pattern constants fails CI
+  and forces a deliberate snapshot update — a §9 CHANGELOG moment rather than silent
+  drift. The dogfood self-audit guards the scoring side. No code, schema, or
+  output-shape change. Approved by Sean in chat 2026-06-17.
 
 - **2026-05-08 — scope-lock §6 example fix + autonomous-detector tightening.**
   scope-lock §6 example call referenced

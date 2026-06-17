@@ -102,15 +102,23 @@ function notesForSection(
   const s = spec.sections[key];
   const label = SECTION_LABELS[key];
   if (!s.present) return `${label} section not located in the spec.`;
-  if (s.empty) return `${label} section is present but empty or placeholder-only.`;
-  if (results.length === 0) return `${label} section is present.`;
+  // Legibility (A1): when a section was recognized from a non-canonical alias
+  // heading, say so, so a higher score on a differently-headed spec is legible
+  // rather than magic.
+  const mapped = s.sourceHeading
+    ? ` (recognized from heading "${s.sourceHeading}")`
+    : "";
+  if (s.empty)
+    return `${label} section is present but empty or placeholder-only.${mapped}`;
+  if (results.length === 0) return `${label} section is present.${mapped}`;
   const failed = results.filter((r) => r.status !== "pass");
-  if (failed.length === 0) return `All ${results.length} ${label.toLowerCase()} checks pass.`;
+  if (failed.length === 0)
+    return `All ${results.length} ${label.toLowerCase()} checks pass.${mapped}`;
   const top = failed
     .slice(0, 2)
     .map((f) => f.description)
     .join("; ");
-  return `${failed.length}/${results.length} checks need attention: ${top}.`;
+  return `${failed.length}/${results.length} checks need attention: ${top}.${mapped}`;
 }
 
 function buildSectionFindings(spec: ParsedSpec): {
