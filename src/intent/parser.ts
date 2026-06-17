@@ -17,6 +17,14 @@ export type ParsedSection = {
   empty: boolean;
   raw: string;
   items: string[];
+  /**
+   * Internal legibility aid (NOT part of the MCP output schema). When a section
+   * was recognized from a non-canonical alias heading (e.g. "## When to Use"
+   * routed to `objective`), this holds the literal heading line that matched so
+   * the audit can report what it mapped. Undefined for canonical headings and
+   * YAML keys.
+   */
+  sourceHeading?: string;
 };
 
 export type ParsedSpec = {
@@ -37,6 +45,52 @@ const MARKDOWN_HEADING_MAP: Array<{ pattern: RegExp; key: SectionKey }> = [
   { pattern: /^#{1,6}\s+edge\s+cases?\b/i, key: "edge_cases" },
   { pattern: /^#{1,6}\s+stop\s+rules/i, key: "stop_rules_verification" },
   { pattern: /^#{1,6}\s+verification\b/i, key: "stop_rules_verification" },
+];
+
+/**
+ * A1 heading-vocabulary mapper. Conservative alias headings — only TRUE semantic
+ * equivalents of a canonical section. Procedural headings (## How to Apply,
+ * ## Instructions, ## Usage, ## Examples) are deliberately NOT listed: they are
+ * not intent equivalents, so they stay unmapped rather than crediting the wrong
+ * section. The table is the extension point — add/remove a row to tune coverage.
+ */
+const SECTION_ALIASES: Array<{ label: string; key: SectionKey }> = [
+  { label: "purpose", key: "objective" },
+  { label: "when to use", key: "objective" },
+  { label: "goal", key: "user_goal" },
+  { label: "success criteria", key: "desired_outcomes" },
+  { label: "definition of done", key: "desired_outcomes" },
+  { label: "context", key: "strategic_context" },
+  { label: "background", key: "strategic_context" },
+  { label: "requirements", key: "constraints" },
+  { label: "important constraints", key: "constraints" },
+  { label: "error handling", key: "edge_cases" },
+  { label: "exceptions", key: "edge_cases" },
+  { label: "completion", key: "stop_rules_verification" },
+  { label: "exit criteria", key: "stop_rules_verification" },
+  { label: "validation", key: "stop_rules_verification" },
+];
+
+function aliasHeadingPattern(label: string): RegExp {
+  const escaped = label
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\s+/g, "\\s+");
+  return new RegExp(`^#{1,6}\\s+${escaped}\\b`, "i");
+}
+
+/**
+ * Match order matters: canonical entries first so canonical spellings always win
+ * (first-match-wins in parseMarkdownSections), then aliases catch the headings the
+ * canonical patterns miss. `alias: true` rows record the literal heading they
+ * matched on `ParsedSection.sourceHeading` for legibility.
+ */
+const HEADING_MATCHERS: Array<{ pattern: RegExp; key: SectionKey; alias: boolean }> = [
+  ...MARKDOWN_HEADING_MAP.map((m) => ({ ...m, alias: false })),
+  ...SECTION_ALIASES.map((a) => ({
+    pattern: aliasHeadingPattern(a.label),
+    key: a.key,
+    alias: true,
+  })),
 ];
 
 const YAML_KEY_MAP: Record<string, SectionKey> = {
@@ -189,25 +243,33 @@ function extractMarkdownListItems(text: string): string[] {
 
 function parseMarkdownSections(
   body: string,
-): Partial<Record<SectionKey, { raw: string; items: string[] }>> {
-  const out: Partial<Record<SectionKey, { raw: string; items: string[] }>> = {};
+): Partial<Record<SectionKey, { raw: string; items: string[]; sourceHeading?: string }>> {
+  const out: Partial<
+    Record<SectionKey, { raw: string; items: string[]; sourceHeading?: string }>
+  > = {};
   const lines = body.split("\n");
-  type Block = { key: SectionKey; lines: string[] };
+  type Block = { key: SectionKey; lines: string[]; sourceHeading?: string };
   const blocks: Block[] = [];
   let current: Block | null = null;
 
   for (const rawLine of lines) {
     const line = rawLine.replace(/\r$/, "");
     let matched: SectionKey | null = null;
-    for (const { pattern, key } of MARKDOWN_HEADING_MAP) {
+    let matchedViaAlias = false;
+    for (const { pattern, key, alias } of HEADING_MATCHERS) {
       if (pattern.test(line)) {
         matched = key;
+        matchedViaAlias = alias;
         break;
       }
     }
     if (matched) {
       if (current) blocks.push(current);
-      current = { key: matched, lines: [] };
+      current = {
+        key: matched,
+        lines: [],
+        sourceHeading: matchedViaAlias ? line.trim() : undefined,
+      };
       continue;
     }
     if (current) current.lines.push(line);
@@ -222,9 +284,11 @@ function parseMarkdownSections(
       out[block.key] = {
         raw: prev.raw + "\n\n" + text,
         items: [...prev.items, ...items],
+        // Keep the first alias heading that produced this section, if any.
+        sourceHeading: prev.sourceHeading ?? block.sourceHeading,
       };
     } else {
-      out[block.key] = { raw: text, items };
+      out[block.key] = { raw: text, items, sourceHeading: block.sourceHeading };
     }
   }
   return out;
@@ -265,6 +329,7 @@ export function parseIntentSpec(text: string): ParsedSpec {
       empty: isPlaceholderOnly(parsed.raw, parsed.items),
       raw: parsed.raw,
       items: parsed.items,
+      sourceHeading: parsed.sourceHeading,
     };
     if (frontmatter !== null) format = "mixed";
   }

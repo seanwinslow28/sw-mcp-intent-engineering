@@ -88,7 +88,7 @@ At scale: the same server audited all 118 first-party skills in my Claude Code S
 
 ## Limitations
 
-The v0 audit is opinionated about heading structure. It expects explicit `## Objective` and `## Desired Outcomes` headings to score sections. When tested against four other skills from a 117-skill personal library, the four scored 1/25 each — not because the skills are bad, but because they express intent through different heading vocabularies (`## When to Use`, `## How to Apply`, etc.). This is a v0 design choice, not a bug. A v0.2 enhancement would add a heading-vocabulary mapper so the audit recognizes equivalent sections under different labels.
+The audit is opinionated about heading structure, but it now recognizes a conservative set of alias headings in addition to the canonical ones — `## Purpose` / `## When to Use` map to Objective, `## Success Criteria` / `## Definition of Done` to Desired Outcomes, `## Completion` / `## Exit Criteria` to Stop Rules, and so on (the full table lives in `src/intent/parser.ts`). When a section is recognized from a non-canonical heading the audit says so in its notes, so the score stays legible. Earlier, skills using different heading vocabularies scored 1/25 because *none* of their present sections were recognized; that false-negative is fixed. Two honest boundaries remain: headings that are *not* true intent equivalents (procedural ones like `## How to Apply`, `## Instructions`, `## Usage`) are deliberately left unmapped rather than credited to the wrong section, and a spec that genuinely lacks the nine intent sections still scores low — the mapper recognizes equivalent intent, it does not invent it.
 
 Other v0 boundaries worth naming up front:
 
