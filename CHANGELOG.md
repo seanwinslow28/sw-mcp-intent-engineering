@@ -4,6 +4,32 @@ All notable scope-lock and contract changes are recorded here, per
 [`docs/v0-scope.md`](docs/v0-scope.md) §9 ("Any change requires my written
 approval in the repo's `CHANGELOG.md` before code is touched").
 
+## [Unreleased] — 2026-08-28 — dogfood-claim correction (docs only)
+
+No code, schema, or tool-contract change. Documentation accuracy only, so no
+scope approval was required under §9.
+
+### Fixed
+
+- **The README's dogfood claim was a chunk score reported as a file score.**
+  `README.md` and `docs/EXPLANATION.md` both stated the canonical
+  `intent-engineering` SKILL.md scores `23/25` with zero anti-patterns. That
+  figure came from a single `audit_intent_spec` call during Phase 3
+  verification (2026-05-08). The audit paginates at `max_length` characters
+  per call (default 10,000); the skill is roughly 32,000 characters, so no
+  single call has graded the whole file. Re-measured 2026-08-28: the current
+  file returns **14/25 with two anti-patterns** on the first chunk, and the
+  file as it stood in the audit week returns **17/25 with one**. Neither
+  reproduces the published figure. Both documents now state the measured
+  result, the date, the reproduction command, and why the original was wrong.
+
+### Known gaps, named rather than shipped
+
+- **No whole-file audit mode.** Grading a document longer than `max_length`
+  requires walking every chunk and aggregating by hand, and a chunk that omits
+  a section is not evidence the section is absent. A `--whole-file`
+  aggregation is the obvious next addition. Not built.
+
 ## [0.1.1] — 2026-06-01 — prompt-injection / file-disclosure hardening
 
 Security hardening release (Task 23). No public tool contract or output-shape
