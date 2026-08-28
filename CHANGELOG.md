@@ -23,6 +23,25 @@ scope approval was required under §9.
   reproduces the published figure. Both documents now state the measured
   result, the date, the reproduction command, and why the original was wrong.
 
+### Verified
+
+- **Every remaining README number re-measured 2026-08-28** after the dogfood
+  correction put the rest of the page under suspicion. The 118-skill batch
+  claims reproduce: 0 parse errors, 94 ms wall-clock (the "under a second"
+  claim), same 118 files re-run via the `audit-superuser-pack` logic. The
+  24/36/40 level split matches the shipped CSV (23.7/36.4/39.8%); the same
+  files today split 20/38/42 — corpus drift, noted in the README. Dogfood
+  first-chunk score reproduces exactly (14/25, `vibe-coded-edge-cases` +
+  `missing-stop-rules`, 5 pass / 3 warn / 1 missing). Structural counts
+  reproduce (25-item checklist, 5 anti-pattern detectors, SDK pinned 1.29.0).
+  `assess_retrofit_level` confirmed **not** to share the audit's pagination
+  hazard: whole-file reads, loud refusal over 1 MiB (`safe-fs.ts`), loud
+  schema rejection of `skill_text` over 50k — no silent partial grade is
+  possible. One environmental fact recorded: the Superuser Pack checkout at
+  `~/Code-Brain/claude-code-superuser-pack` no longer contains the corpus;
+  all 118 files live on in `code-brain/.claude/skills/`, which is what the
+  re-measurement ran against.
+
 ### Known gaps, named rather than shipped
 
 - **No whole-file audit mode.** Grading a document longer than `max_length`

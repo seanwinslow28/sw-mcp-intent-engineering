@@ -113,7 +113,7 @@ Two things worth stating plainly, because this is a spec-auditing tool:
 
 **Known gap, not yet built:** there is no whole-file mode. Grading the full skill today means walking every chunk and aggregating by hand, and a chunk that omits a section is not evidence the section is absent. A `--whole-file` aggregation is the obvious next addition and is deliberately listed here rather than quietly shipped.
 
-At scale: the same server audited all 118 first-party skills in my Claude Code Superuser Pack in under a second. 24% scored L1-mvr (the spec just needs an intent header), 36% scored L2-structured (needs Health Metrics + Decision Authority), and 40% scored L3-full (autonomous-loop or high-blast-radius skills that warrant a 9-section conversion). Zero parse errors across the batch. The full CSV is at `examples/superuser-pack-retrofit-assessment.csv`.
+At scale: the same server assessed all 118 first-party skills in my Claude Code Superuser Pack with zero parse errors, in under a second — both re-measured 2026-08-28 (94 ms, 0 errors, running the `scripts/audit-superuser-pack.ts` logic over the same 118 files). In the shipped CSV at `examples/superuser-pack-retrofit-assessment.csv` (2026-05), 24% scored L1-mvr (the spec just needs an intent header), 36% L2-structured (needs Health Metrics + Decision Authority), and 40% L3-full (autonomous-loop or high-blast-radius skills that warrant a 9-section conversion). The same files as they stand today split 20% / 38% / 42% — the corpus evolved, not the tool. And unlike `audit_intent_spec`, `assess_retrofit_level` does not paginate: it reads the whole file and refuses anything over 1 MiB loudly, so a batch grade cannot silently repeat the chunk-as-file mistake documented above.
 
 ## Limitations
 
