@@ -89,7 +89,16 @@ an explicit `max_length` would add a conflict case with no capability behind it.
   | May-era file, first 10,000 chars | 17/25 | 1 |
   | Today's file (32,356 chars), whole | 23/25 | none |
   | Today's file, first 10,000 chars | 14/25 | 2 |
-  | Any read starting past end of file | 1/25 | none |
+  | Any read starting past end of file | 1/25 then, 0/25 now | 2 |
+
+  Graded whole, **every revision in the file's git history scores 23/25 with
+  zero anti-patterns**: `ebf41b3d` (2026-03-03, 17,942 chars), `9c76e762`
+  (2026-05-04, 17,885), `d0117843` (2026-06-10, 17,900), `c8f90d79`
+  (2026-07-05, 32,356). The grade is stable across five months and a commit
+  that nearly doubled the file, and it was independently re-confirmed in a
+  2026-06-17 working session while the file still fit in one call (recorded in
+  `vault/20_projects/substack-studio/continuation-prompts/CONTINUATION-2026-06-17-mcp-strengthening.md`).
+  What changed on 2026-07-05 was the measurability, not the grade.
 
   In May the skill was 17,885 characters. `max_length` caps at 20,000, so the
   whole file fit inside a single call and the Phase 3 session's "first chunk"
@@ -108,6 +117,35 @@ an explicit `max_length` would add a conflict case with no capability behind it.
   `coverage` block exists because being careful was demonstrably not enough:
   the retraction was written deliberately, cited its own evidence, and was
   still wrong.
+
+- **A document nothing is recognized in scored 1/25. It now scores 0/25.**
+  `stop.zero-interaction-mandate` is the rubric's one conditional item. Its
+  "(For scheduled agents)" precondition does not apply to a non-scheduled
+  agent, and not-applicable was encoded as `pass`. An empty file, a
+  whitespace-only input, a read starting past the end of a document, or prose
+  matching no heading in either table all parse as non-autonomous, so they took
+  that branch and collected the point. This is why the Phase 3 round-trip
+  table's past-the-end reads showed `1/25` rather than `0/25`, which made "no
+  data" look like "a weak grade". A check crediting a document it never saw is
+  the same disease as a chunk score published as a file score, one point wide.
+
+  The guard is narrow: it fires only when **no** section was recognized, so the
+  not-applicable pass stays correct for a real non-autonomous spec. It sits in
+  `buildSectionFindings` rather than in the predicate, so any future conditional
+  check that would pass vacuously is caught by the same guard. Anti-pattern
+  detection is deliberately unchanged: those are debits, not credits, and a
+  document with no edge cases genuinely lacks them. The headline 23/25 is
+  unaffected, and a test pins it: the canonical skill parses as autonomous, so
+  its zero-interaction point is a real match and never took the vacuous branch.
+  Five tests in `src/intent/empty-document.test.ts`. Suite now **50 passing**.
+
+- **Correction to this entry's own first published table.** Its
+  "read past end of file" row said `none` anti-patterns. That cell was inferred,
+  not measured. A past-the-end read fires **two** (`vibe-coded-edge-cases`,
+  `missing-stop-rules`), because those detectors correctly report that a
+  document with no edge cases and no stop rules has neither. Corrected above and
+  in `README.md`. Noted rather than quietly edited, since the entire point of
+  the table is that its cells were measured.
 
 - **`README.md` and `docs/EXPLANATION.md` re-corrected.** Both led with the
   retracted story. Both now carry the measurement table, the mechanism (a file

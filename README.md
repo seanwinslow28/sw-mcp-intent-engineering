@@ -114,9 +114,20 @@ The 23/25 above is the figure this page published in May 2026, retracted on 2026
 | May-era file, first 10,000 chars | 17/25 | 1 |
 | Today's file (32,356 chars), whole | **23/25** | none |
 | Today's file, first 10,000 chars | 14/25 | 2 |
-| Any read starting past the end of the file | 1/25 | none |
+| Any read starting past the end of the file | 1/25 at the time, **0/25** since | 2 |
 
-**Why the original was right.** In May the skill was 17,885 characters. `max_length` caps at 20,000, so the whole file fit inside a single call and Phase 3's "first chunk" was the entire document. The `1/25` rows in that session's round-trip table were reads that started past the end and graded zero characters, not partial grades of real content.
+**Why the original was right.** In May the skill was 17,885 characters. `max_length` caps at 20,000, so the whole file fit inside a single call and Phase 3's "first chunk" was the entire document. The `1/25` rows in that session's round-trip table were reads that started past the end and graded zero characters, not partial grades of real content. (That `1/25` was itself a small bug, fixed the same day as this re-correction: one conditional rubric item treated "not applicable" as a pass, so an unrecognized document collected a point. A document nothing is recognized in now scores `0/25`.)
+
+**The number has never moved.** Graded whole, every revision of the skill in its git history scores the same:
+
+| Revision | Characters | Whole-file score | Fits one 20,000-char call |
+|---|---|---|---|
+| `ebf41b3d` 2026-03-03 | 17,942 | 23/25, zero anti-patterns | yes |
+| `9c76e762` 2026-05-04 | 17,885 | 23/25, zero anti-patterns | yes |
+| `d0117843` 2026-06-10 | 17,900 | 23/25, zero anti-patterns | yes |
+| `c8f90d79` 2026-07-05 | 32,356 | 23/25, zero anti-patterns | **no** |
+
+The score is stable across five months and a commit that nearly doubled the file. It was also re-confirmed independently in a 2026-06-17 working session, when the file still fit in one call. What changed on 2026-07-05 was not the grade but the *measurability*: the file crossed the ceiling, and from then on no single call could check the published number.
 
 **Why it was retracted anyway.** By July the skill had grown to 32,356 characters and crossed the 20,000-character ceiling, so no single call could grade it any more. The 2026-08-28 re-measurement used the 10,000-character default, got 14/25, saw that it did not match 23/25, and concluded the original had been a chunk mistaken for a file. That description of the error was exactly right and was applied to the wrong measurement. The chunk was the new one.
 

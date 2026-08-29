@@ -148,12 +148,45 @@ function notesForSection(
   return `${failed.length}/${results.length} checks need attention: ${top}.${mapped}`;
 }
 
+/**
+ * True when the parse recognized no section at all: an empty file, a
+ * whitespace-only input, a read that started past the end of a document, or
+ * prose whose headings match nothing in the canonical or alias tables.
+ */
+function nothingRecognized(spec: ParsedSpec): boolean {
+  return SECTION_KEYS.every((k) => !spec.sections[k].present);
+}
+
 function buildSectionFindings(spec: ParsedSpec): {
   findings: SectionFinding[];
   passes: number;
 } {
   const findings: SectionFinding[] = [];
   let totalPasses = 0;
+
+  // A document nothing was recognized in scores 0/25, and no check may award a
+  // point for it (2026-08-29).
+  //
+  // Before this guard it scored 1/25. `stop.zero-interaction-mandate` is the
+  // rubric's one conditional item: its "(For scheduled agents)" precondition
+  // does not apply to a non-scheduled agent, and not-applicable was encoded as
+  // `pass`. An empty document parses as non-autonomous, so it took that branch
+  // and collected the point. That is a check crediting a document it never saw.
+  //
+  // The guard is deliberately narrow. The free pass stays correct for a real
+  // non-autonomous spec, which is why this tests for an unrecognized document
+  // rather than changing the predicate: it also catches any future conditional
+  // check that would pass vacuously for the same reason.
+  if (nothingRecognized(spec)) {
+    return {
+      findings: SECTION_KEYS.map((key) => ({
+        section: key,
+        status: "missing" as ChecklistStatus,
+        notes: notesForSection(key, spec, []),
+      })),
+      passes: 0,
+    };
+  }
 
   for (const key of SECTION_KEYS) {
     const itemsForSection = VALIDATION_CHECKLIST.filter((i) => i.section === key);
