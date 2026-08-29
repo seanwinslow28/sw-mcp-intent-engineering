@@ -47,7 +47,27 @@ const { assessRetrofitLevel } = (await import(retrofitUrl)) as {
 };
 
 const HOME = process.env.HOME ?? "";
-const SOURCE_ROOT = path.resolve(HOME, "Code-Brain/claude-code-superuser-pack");
+/**
+ * Corpus location. The original hardcoded path
+ * (`~/Code-Brain/claude-code-superuser-pack`) went dead: that checkout no
+ * longer contains the skills, and the 118-file corpus lives on in
+ * `code-brain/.claude/skills/` (recorded 2026-08-28 during the README
+ * re-verification). Parameterized 2026-08-29 so a stale default fails loudly
+ * and can be overridden without editing this file.
+ *
+ * Precedence: argv[2] > SUPERUSER_PACK_ROOT > the code-brain default.
+ *
+ * Corpus drift: the shipped CSV and the README's percentages are over 118
+ * files (2026-05). The default root holds 135 as of 2026-08-29. A re-run grades
+ * a superset, so its counts are not comparable to the published 118-file split
+ * unless the file list is filtered to match. Report N with any figure taken
+ * from a re-run.
+ */
+const SOURCE_ROOT = path.resolve(
+  process.argv[2] ??
+    process.env.SUPERUSER_PACK_ROOT ??
+    path.join(HOME, "Code-Brain/code-brain"),
+);
 const SKILLS_DIR = path.join(SOURCE_ROOT, ".claude/skills");
 const OUTPUT_PATH = path.join(REPO_ROOT, "examples/superuser-pack-retrofit-assessment.csv");
 
@@ -89,8 +109,24 @@ function csvRow(values: Array<string | undefined | null>): string {
 
 async function main(): Promise<void> {
   const start = Date.now();
-  const files = await walkSkillFiles(SKILLS_DIR);
+  let files: string[];
+  try {
+    files = await walkSkillFiles(SKILLS_DIR);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === "ENOENT") {
+      throw new Error(
+        `No skills directory at ${SKILLS_DIR}. Pass the corpus root as the first argument, or set SUPERUSER_PACK_ROOT.`,
+      );
+    }
+    throw err;
+  }
   const total = files.length;
+  if (total === 0) {
+    throw new Error(
+      `Found no SKILL.md files under ${SKILLS_DIR}. Pass the corpus root as the first argument, or set SUPERUSER_PACK_ROOT.`,
+    );
+  }
   process.stderr.write(`Discovered ${total} SKILL.md files under ${SKILLS_DIR}\n`);
   process.stderr.write(`Output: ${OUTPUT_PATH}\n`);
   process.stderr.write(`Budget: 90 minutes\n\n`);

@@ -6,7 +6,7 @@ Most agent failures aren't reasoning failures — they're intent failures. The s
 
 ## The trust surface, up front
 
-- **It audits itself, and the first version of that claim was wrong.** Re-measured 2026-08-28, the canonical skill scores **14/25 with two anti-patterns** on the first chunk. This page used to say "23/25, zero anti-patterns" — a single paginated chunk reported as a whole-file score. The correction, and why it is the exact failure this server exists to catch, is in [Dogfood result](#dogfood-result-and-the-correction-that-came-with-it).
+- **It audits itself, and it has now published a wrong number and a wrong correction of that number.** Graded whole on 2026-08-29, the canonical skill scores **23/25 with zero anti-patterns**. This page claimed 14/25 for one day, a retraction measured on the first 10,000 characters of a 32,356-character file. The original figure was right; the retraction was the error, and the same blind spot produced both. The full measurement table is in [Dogfood result](#dogfood-result-and-the-correction-that-came-with-it).
 - **Read-only by design.** No tool writes files. The retrofit tool recommends; it does not apply.
 - **File reads are guarded.** An early version would read any path you handed it, which made `/etc/passwd` a real disclosure bug. Every disk read now routes through one guard: extension allowlist, symlink resolution, root confinement, and a size cap.
 - **The build refuses common failure modes.** SDK pinned to the stable v1.x line, a `prepublishOnly` guard that fails the build on any `console.log` in `src/`, and a changelog rule: no scope change without written approval before code.
@@ -28,7 +28,7 @@ A Model Context Protocol server that exposes three tools any MCP-aware client (C
 ### What I Learned
 The MCP protocol is essentially a contract for "I am a tool an LLM can call without me writing a wrapper." Once that landed, the server became a thin protocol adapter over an existing skill — and the OPTIONAL-fields pattern I'd developed on a separate knowledge-graph project translated directly.
 
-The part I got wrong is the more useful lesson. I published a dogfood score of 23/25 taken from one paginated call and presented it as the whole file's grade. Re-measuring four months later caught it. **A tool that eats its own dog food earns credibility fast. A tool that catches its author misquoting it earns more.**
+The part I got wrong is the more useful lesson, and I got it wrong twice. I published a dogfood score of 23/25. Four months later I decided it had been a partial read reported as a whole-file grade, retracted it, and published 14/25 instead. The retraction was the actual error: the original had graded the whole file, and my replacement number was the partial read. Both were published because the tool's output could not tell you how much of the document it had just graded, so neither figure could be checked without going back to the source. **A tool that eats its own dog food earns credibility fast. A tool that makes its author's mistakes falsifiable earns more, and it is the harder thing to build.**
 
 ## Three tools
 
@@ -96,7 +96,7 @@ You'll get back a score out of 25, a list of detected anti-patterns (this spec h
 
 ## Dogfood result, and the correction that came with it
 
-**Re-measured 2026-08-28.** The canonical `intent-engineering` SKILL.md, audited by this server with default settings, scores **14/25 with two anti-patterns detected** (`vibe-coded-edge-cases`, `missing-stop-rules`). Five sections pass, three warn, one is missing.
+**Re-measured whole-file 2026-08-29. The canonical `intent-engineering` SKILL.md scores 23/25 with zero anti-patterns detected.** Seven sections pass, two warn, none are missing. That is a grade of all 32,356 characters, and the `coverage` block in the response says so.
 
 Reproduce it in one call:
 
@@ -104,16 +104,32 @@ Reproduce it in one call:
 audit_intent_spec({ file_path: "<path>/.claude/skills/intent-engineering/SKILL.md" })
 ```
 
-**This page previously claimed 23/25 with zero anti-patterns. That was a chunk score reported as a file score.** `audit_intent_spec` paginates: it reads `max_length` characters per call (default 10,000) and returns a `next_chunk_token` when more remains. The skill is roughly 32,000 characters, so **no single call has ever graded the whole document.** The 23/25 came from one call during Phase 3 verification on 2026-05-08 and was written up as though it covered the file. Auditing that same file as it stood that week returns **17/25 with one anti-pattern** on the first chunk — the original figure does not reproduce even against the original file.
+### This page carried a wrong number, and then a wrong correction
+
+The 23/25 above is the figure this page published in May 2026, retracted on 2026-08-28, and restored on 2026-08-29. The retraction was the mistake. Every measurement behind that sentence, so the reasoning can be checked instead of trusted:
+
+| What was graded | Score | Anti-patterns |
+|---|---|---|
+| May-era file (17,885 chars), whole | **23/25** | none |
+| May-era file, first 10,000 chars | 17/25 | 1 |
+| Today's file (32,356 chars), whole | **23/25** | none |
+| Today's file, first 10,000 chars | 14/25 | 2 |
+| Any read starting past the end of the file | 1/25 | none |
+
+**Why the original was right.** In May the skill was 17,885 characters. `max_length` caps at 20,000, so the whole file fit inside a single call and Phase 3's "first chunk" was the entire document. The `1/25` rows in that session's round-trip table were reads that started past the end and graded zero characters, not partial grades of real content.
+
+**Why it was retracted anyway.** By July the skill had grown to 32,356 characters and crossed the 20,000-character ceiling, so no single call could grade it any more. The 2026-08-28 re-measurement used the 10,000-character default, got 14/25, saw that it did not match 23/25, and concluded the original had been a chunk mistaken for a file. That description of the error was exactly right and was applied to the wrong measurement. The chunk was the new one.
+
+**The two mistakes have one cause.** For four months this tool could not tell you whether a score covered the whole document, and neither could its author. The May claim and the August retraction were both published without that fact being visible anywhere in the output. One happened to be right and one happened to be wrong, which is the least useful way to be correct.
 
 Two things worth stating plainly, because this is a spec-auditing tool:
 
-- **The tool was not wrong; the reading was.** Pagination is documented in the tool description and was deliberately verified in Phase 3 — that session's own 30k round-trip table shows the first chunk scoring 23/25 and later chunks scoring 1/25. The number was miscopied out of a pagination test into a headline, not miscomputed.
-- **This is the failure mode the server exists to catch, committed by its author.** A figure with no stated denominator, taken from a partial read, published as a summary. The 25-item rubric checks whether *your* outcomes are measurable. Nothing in it stops you from quoting your own tool out of context.
+- **The tool was never wrong; the reading was, twice, in opposite directions.** `"14/25"` and `"23/25"` were the same shape of string. Nothing in the response distinguished a grade of 10,000 characters from a grade of 32,356, so both readings were unfalsifiable at a glance and both got published.
+- **A correction is a claim and needs the same provenance as the thing it corrects.** The retraction was written carefully, cited its own session's table, and was still wrong, because it never asked what its replacement number had actually graded. Catching yourself is not the finish line. Catching yourself with a measurement that names its own denominator is.
 
-**Known gap, not yet built:** there is no whole-file mode. Grading the full skill today means walking every chunk and aggregating by hand, and a chunk that omits a section is not evidence the section is absent. A `--whole-file` aggregation is the obvious next addition and is deliberately listed here rather than quietly shipped.
+**Fixed 2026-08-29, and this is what made the fix necessary.** `audit_intent_spec` now grades the whole document by default, and every response carries a `coverage` block naming the mode, the characters graded, the characters available, and whether the grade is complete. A partial grade can still be asked for. It can no longer be mistaken for a complete one.
 
-At scale: the same server assessed all 118 first-party skills in my Claude Code Superuser Pack with zero parse errors, in under a second — both re-measured 2026-08-28 (94 ms, 0 errors, running the `scripts/audit-superuser-pack.ts` logic over the same 118 files). In the shipped CSV at `examples/superuser-pack-retrofit-assessment.csv` (2026-05), 24% scored L1-mvr (the spec just needs an intent header), 36% L2-structured (needs Health Metrics + Decision Authority), and 40% L3-full (autonomous-loop or high-blast-radius skills that warrant a 9-section conversion). The same files as they stand today split 20% / 38% / 42% — the corpus evolved, not the tool. And unlike `audit_intent_spec`, `assess_retrofit_level` does not paginate: it reads the whole file and refuses anything over 1 MiB loudly, so a batch grade cannot silently repeat the chunk-as-file mistake documented above.
+At scale: the same server assessed all 118 first-party skills in my Claude Code Superuser Pack with zero parse errors, in under a second — both re-measured 2026-08-28 (94 ms, 0 errors, running the `scripts/audit-superuser-pack.ts` logic over the same 118 files). In the shipped CSV at `examples/superuser-pack-retrofit-assessment.csv` (2026-05), 24% scored L1-mvr (the spec just needs an intent header), 36% L2-structured (needs Health Metrics + Decision Authority), and 40% L3-full (autonomous-loop or high-blast-radius skills that warrant a 9-section conversion). The same files as they stand today split 20% / 38% / 42% — the corpus evolved, not the tool. `assess_retrofit_level` never had the hazard documented above: it has always read whole files and refused anything over 1 MiB loudly, so no batch grade in that CSV was ever a partial read. As of 2026-08-29 `audit_intent_spec` defaults to the same whole-document behavior.
 
 ## Limitations
 

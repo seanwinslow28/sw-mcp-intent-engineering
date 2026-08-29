@@ -27,16 +27,18 @@ export const AUDIT_INPUT_SCHEMA_SHAPE = {
     .number()
     .int()
     .min(0)
-    .default(0)
-    .describe("Zero-based character offset for paginated input. Default 0.")
+    .describe(
+      "Optional. Zero-based character offset to start grading from. Supplying this (or max_length) opts into windowed grading; omit both to grade the whole document.",
+    )
     .optional(),
   max_length: z
     .number()
     .int()
     .min(500)
     .max(20_000)
-    .default(10_000)
-    .describe("Max characters of input to process this call. Default 10000.")
+    .describe(
+      "Optional. Max characters to grade in this call. Supplying this (or start_index) opts into windowed grading; omit both to grade the whole document. No default is injected: an omitted value means the whole document, not a 10000-character window.",
+    )
     .optional(),
 };
 
@@ -56,11 +58,36 @@ export type SectionFinding = {
   notes: string;
 };
 
+/**
+ * What this call actually graded.
+ *
+ * The 2026-08-28 dogfood correction happened because a chunk score and a file
+ * score were typographically identical: "14/25" reads the same whether it
+ * graded 10,000 characters or all 32,556. `coverage` is what makes a partial
+ * grade impossible to mistake for a complete one.
+ *
+ * `mode` records how the call was made; `complete` records whether the grade
+ * covers the entire document. They are independent: a resumed window can run
+ * to the end of the document (so there is nothing left to fetch) while still
+ * not having graded the document as a whole.
+ */
+export type AuditCoverage = {
+  /** "whole_file" when neither window parameter was supplied. */
+  mode: "whole_file" | "window";
+  /** Characters graded by this call. */
+  chars_graded: number;
+  /** Characters available in the input. */
+  chars_total: number;
+  /** True only when this single call graded the document from start to end. */
+  complete: boolean;
+};
+
 export type AuditIntentSpecOutput = {
   validation_score: string;
   section_findings: SectionFinding[];
   anti_patterns_detected: AntiPatternId[];
   top_3_recommendations: string[];
+  coverage: AuditCoverage;
   next_chunk_token: string | null;
 };
 
@@ -223,9 +250,33 @@ export async function auditIntentSpec(
   input: AuditIntentSpecInput,
 ): Promise<AuditIntentSpecOutput> {
   const fullText = await loadInput(input);
+
+  // Whole-document grading is the default. Windowed grading is opt-in, entered
+  // by supplying either window parameter. Before 2026-08-29 the window was
+  // always on with an injected 10,000-character default, so a caller who asked
+  // for nothing in particular silently received a partial grade in a shape
+  // indistinguishable from a whole-document one.
+  //
+  // Chunking was never load-bearing here. It was modelled on the official
+  // `fetch` server, which paginates because its response grows with the page it
+  // returns. This tool's response is fixed size (a score, nine section
+  // findings, at most five anti-patterns, three recommendations) no matter how
+  // much input it reads, and the input is already bounded by the Zod max on
+  // spec_text and the 1 MiB ceiling in safe-fs.ts.
+  const windowed =
+    input.start_index !== undefined || input.max_length !== undefined;
   const startIndex = input.start_index ?? 0;
-  const maxLength = input.max_length ?? 10_000;
+  const maxLength =
+    input.max_length ?? Math.max(fullText.length - startIndex, 0);
   const { chunk, nextToken } = paginate(fullText, startIndex, maxLength);
+  const coverage: AuditCoverage = {
+    mode: windowed ? "window" : "whole_file",
+    chars_graded: chunk.length,
+    chars_total: fullText.length,
+    // Complete means this one call graded the document end to end. A resumed
+    // window can exhaust the input (nextToken null) without being complete.
+    complete: startIndex === 0 && startIndex + chunk.length === fullText.length,
+  };
   const spec = parseIntentSpec(chunk);
   const { findings, passes } = buildSectionFindings(spec);
   const antiPatterns = detectAntiPatterns(spec);
@@ -235,6 +286,7 @@ export async function auditIntentSpec(
     section_findings: findings,
     anti_patterns_detected: antiPatterns,
     top_3_recommendations: recommendations,
+    coverage,
     next_chunk_token: nextToken,
   };
 }

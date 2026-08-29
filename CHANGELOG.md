@@ -4,7 +4,145 @@ All notable scope-lock and contract changes are recorded here, per
 [`docs/v0-scope.md`](docs/v0-scope.md) §9 ("Any change requires my written
 approval in the repo's `CHANGELOG.md` before code is touched").
 
+## [Unreleased] — 2026-08-29 — whole-file audit aggregation (schema change)
+
+### Scope approval (§9)
+
+`docs/v0-scope.md` §9 requires written approval in this file before any input
+or output schema is changed. **Approved by Sean on 2026-08-29, recorded here
+before code was written.** Two changes are approved, both to
+`audit_intent_spec`:
+
+1. **Input.** Whole-document grading becomes the default. `start_index` and
+   `max_length` stay accepted with unchanged types and bounds, but they become
+   an explicit opt-in window rather than an always-on chunker. `max_length`
+   loses its `.default(10_000)`, so an omitted value now means "grade all of
+   it" instead of "grade the first 10,000 characters".
+2. **Output.** A `coverage` object is added, reporting the grading mode, the
+   characters graded, the characters available, and whether the grade is
+   complete.
+
+**Why the default flips rather than a flag being added.** The pagination was
+modelled on the official `fetch` server (§4 cites that lineage), where
+paginating is correct because that server's *response* grows with the page it
+returns. This tool's response does not grow: a score, nine section findings, at
+most five anti-patterns, three recommendations, the same size whether it reads
+500 characters or 32,000. Input size was already bounded elsewhere and still is
+(50,000 characters for `spec_text` via Zod, 1 MiB for files via `safe-fs.ts`).
+So chunking bounded the one side of this tool that never needed bounding, and
+the cost of it was a wrong published number. A flag would have left the trap
+armed for anyone who forgot to pass it, which is the same failure mode that
+produced the 23/25 claim.
+
+**Why `coverage` is part of the same approval.** The 2026-08-28 correction was
+possible because a chunk score and a file score were typographically identical:
+`"14/25"` reads the same whether it graded 10,000 characters or all 32,556.
+Flipping the default fixes the common path; `coverage` is what makes a partial
+grade impossible to mistake for a complete one on the paths that remain.
+
+**Not approved and not built:** a redundant `whole_file` boolean. Absence of
+the window parameters already means whole file, and a flag that could contradict
+an explicit `max_length` would add a conflict case with no capability behind it.
+
+### Added
+
+- **Whole-document grading, and it is now the default.** `audit_intent_spec`
+  grades all of the input unless a window is explicitly requested. A window is
+  requested by supplying `start_index`, `max_length`, or both.
+- **A `coverage` block on every audit response**, reporting `mode`
+  (`whole_file` / `window`), `chars_graded`, `chars_total`, and `complete`.
+  `complete` is true only when a single call graded the document start to end,
+  so it answers a different question from `next_chunk_token`: a resumed window
+  that reaches the end of the input has nothing left to fetch
+  (`next_chunk_token: null`) while still not having graded the document
+  (`complete: false`).
+- **10 tests** in `src/intent/whole-file.test.ts` covering the default path, the
+  coverage block in both modes, window opt-in via either parameter, resumed
+  windows, and the schema change. Suite: **45 passing, up from 35.** The
+  existing A3 chunk-boundary test in `parser.test.ts` is unchanged and still
+  passes; it supplies both window parameters, so it now reads as an explicit
+  windowed-grading test.
+
+### Changed
+
+- `audit_intent_spec`'s tool description now states that it grades whole
+  documents by default and points at `coverage`.
+- `docs/v0-scope.md` §4 amended: input schema, output schema, and the
+  "Pagination behavior" section, which is renamed "Grading scope" and retains
+  the superseded design as a quoted block. Done-criterion 8 is annotated rather
+  than rewritten, since it passed at the 2026-05-25 gate as written.
+
+### Fixed
+
+- **The 2026-08-28 dogfood correction was itself wrong, and is retracted.**
+  Graded whole on 2026-08-29, the canonical `intent-engineering` SKILL.md
+  scores **23/25 with zero anti-patterns** (7 sections pass, 2 warn, 0
+  missing), across all 32,356 characters. That is exactly the figure published
+  in May 2026 and retracted last night. **The original claim reproduces; the
+  retraction was the error.**
+
+  What actually happened, with every number reproduced:
+
+  | What was graded | Score | Anti-patterns |
+  |---|---|---|
+  | May-era file (17,885 chars), whole | 23/25 | none |
+  | May-era file, first 10,000 chars | 17/25 | 1 |
+  | Today's file (32,356 chars), whole | 23/25 | none |
+  | Today's file, first 10,000 chars | 14/25 | 2 |
+  | Any read starting past end of file | 1/25 | none |
+
+  In May the skill was 17,885 characters. `max_length` caps at 20,000, so the
+  whole file fit inside a single call and the Phase 3 session's "first chunk"
+  was the entire document. That session's `1/25` rows were reads starting past
+  the end of the file, grading zero characters, not partial grades of real
+  content. By July the skill had grown to 32,356 characters and crossed the
+  20,000-character ceiling, so no single call could grade it. The 2026-08-28
+  re-measurement used the 10,000-character default, got 14/25, found it did not
+  match 23/25, and concluded the original had been a chunk mistaken for a file.
+  It described the error correctly and applied it to the wrong measurement: the
+  chunk was the new one.
+
+  Both mistakes have one cause. Until today the response could not tell a
+  reader how much of the document it had graded, so neither figure was
+  checkable without going back to the source, and both were published. The
+  `coverage` block exists because being careful was demonstrably not enough:
+  the retraction was written deliberately, cited its own evidence, and was
+  still wrong.
+
+- **`README.md` and `docs/EXPLANATION.md` re-corrected.** Both led with the
+  retracted story. Both now carry the measurement table, the mechanism (a file
+  that outgrew the tool's single-call ceiling), and the sharper version of the
+  lesson.
+
+### Verified
+
+- Suite **45/45 passing** (`npm test`, which runs `tsc` first, so the schema
+  and output-shape changes are type-checked).
+- Every figure in this entry re-measured 2026-08-29 against
+  `build/intent/audit.js` on two files: the live skill at
+  `code-brain/.claude/skills/intent-engineering/SKILL.md`, and the May-era file
+  recovered from `code-brain` commit `9c76e762` (2026-05-04, the last revision
+  before the 2026-05-08 audit).
+- **Provenance check on the re-correction:** the first-chunk numbers measured
+  here reproduce the 2026-08-28 entry's published figures exactly (17/25 with
+  one anti-pattern on the May file, 14/25 with two on today's). Same files,
+  same tool, same method. That is what establishes that the disagreement is
+  about what was graded, not about how it was graded.
+
+### Still not built
+
+- **Nothing reads the skill.** The 25 checks remain TS constants mirroring
+  canonical markdown, guarded only by a snapshot of themselves. Unchanged by
+  this release and still the largest live risk. See `docs/EXPLANATION.md` §2.
+- **`coverage` protects the tool's output, not its quotation.** Both published
+  mistakes happened after a number left the response and entered a sentence.
+  Nothing here prevents that.
+
 ## [Unreleased] — 2026-08-28 — dogfood-claim correction (docs only)
+
+> **Superseded 2026-08-29.** The correction recorded below is itself wrong.
+> The original 23/25 reproduces when the file is graded whole. See the
+> whole-file entry above for the measurement table.
 
 No code, schema, or tool-contract change. Documentation accuracy only, so no
 scope approval was required under §9.

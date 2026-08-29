@@ -63,7 +63,7 @@ server.registerTool(
   {
     title: "Audit Intent Spec",
     description:
-      "Audit an intent spec against the 25-item validation checklist and the 5 fatal anti-patterns from the intent-engineering skill. Provide either spec_text (raw spec) OR file_path (absolute path to a markdown or YAML file). For long inputs, use start_index + max_length to paginate; the response includes next_chunk_token when more content remains.",
+      "Audit an intent spec against the 25-item validation checklist and the 5 fatal anti-patterns from the intent-engineering skill. Provide either spec_text (raw spec) OR file_path (absolute path to a markdown or YAML file). Grades the whole document by default. To grade only part of one, supply start_index and/or max_length; the response reports what it actually graded in `coverage` and sets next_chunk_token when more content remains.",
     inputSchema: AUDIT_INPUT_SCHEMA_SHAPE,
   },
   async (rawArgs) => {

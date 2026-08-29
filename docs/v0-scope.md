@@ -123,11 +123,14 @@ export const AuditIntentSpecInputSchema = z.object({
   file_path: z.string().min(1)
     .describe("Absolute path to a markdown or YAML intent spec file. Provide this OR spec_text, not both.")
     .optional(),
-  start_index: z.number().int().min(0).default(0)
-    .describe("Zero-based character offset for paginated input. Default 0.")
+  // Amended 2026-08-29 (see CHANGELOG "whole-file audit aggregation"). Both
+  // window parameters lost their injected defaults: omitting them now means
+  // "grade the whole document", not "grade the first 10,000 characters".
+  start_index: z.number().int().min(0)
+    .describe("Optional. Zero-based character offset to start grading from. Supplying this (or max_length) opts into windowed grading; omit both to grade the whole document.")
     .optional(),
-  max_length: z.number().int().min(500).max(20_000).default(10_000)
-    .describe("Max characters of input to process this call. Default 10000.")
+  max_length: z.number().int().min(500).max(20_000)
+    .describe("Optional. Max characters to grade in this call. Supplying this (or start_index) opts into windowed grading; omit both to grade the whole document.")
     .optional(),
 }).refine(
   ({ spec_text, file_path }) => Boolean(spec_text) !== Boolean(file_path),
@@ -157,13 +160,25 @@ type AuditIntentSpecOutput = {
     | "missing-stop-rules"
   >;
   top_3_recommendations: string[];                   // ordered by impact
+  coverage: {                                        // added 2026-08-29
+    mode: "whole_file" | "window";                   // how the call was made
+    chars_graded: number;                            // graded by this call
+    chars_total: number;                             // available in the input
+    complete: boolean;                               // this call graded start-to-end
+  };
   next_chunk_token: string | null;                   // null when input fully consumed
 };
 ```
 
-### Pagination behavior
+### Grading scope (amended 2026-08-29)
 
-If the input exceeds `max_length` characters from `start_index`, process the chunk, set `next_chunk_token` to the byte offset of the next chunk start, and include a partial result. Subsequent calls with the same `spec_text` (or `file_path`) and `start_index = <previous next_chunk_token>` continue the audit. The score and anti-patterns are reported per-chunk; the LLM aggregates across calls. (This mirrors the official `fetch` server's `start_index` + `max_length` pattern — Gemini DR Max §4.)
+**Default: the whole document.** When neither `start_index` nor `max_length` is supplied, the tool grades all of the input and reports `coverage.mode = "whole_file"` with `complete: true`.
+
+**Windowed grading is opt-in.** Supplying either parameter grades only that window and reports `coverage.mode = "window"`. `next_chunk_token` is set to the offset of the next chunk when content remains, so a caller can resume. `coverage.complete` is true only when a single call graded the document from start to end, so a resumed window that reaches the end has `next_chunk_token: null` and `complete: false`. Those two fields answer different questions: is there more to fetch, and did this grade cover the document.
+
+**Why this was amended.** The original design (below) mirrored the official `fetch` server's `start_index` + `max_length` pattern, per Gemini DR Max §4. That was the wrong lineage to copy. `fetch` paginates because its *response* grows with the page it returns; this tool's response is fixed size (a score, nine section findings, at most five anti-patterns, three recommendations) no matter how much input it reads, and the input is already bounded by the Zod max on `spec_text` and the 1 MiB ceiling in `safe-fs.ts`. So the pagination bounded the one side of this tool that never needed bounding, while making a partial grade indistinguishable from a complete one in the output. It cost this project its published dogfood number twice, in opposite directions. See the README's "Dogfood result" section for the measurement table.
+
+> **Superseded design, retained for the record:** "If the input exceeds `max_length` characters from `start_index`, process the chunk, set `next_chunk_token` to the byte offset of the next chunk start, and include a partial result. The score and anti-patterns are reported per-chunk; the LLM aggregates across calls." Asking the calling model to aggregate per-chunk scores was never sound: a section straddling a chunk boundary is split and mis-graded in both chunks, and a chunk that omits a section is not evidence the section is absent.
 
 ### Example call
 
@@ -198,6 +213,12 @@ If the input exceeds `max_length` characters from `start_index`, process the chu
     "Rewrite outcome 1 as a state: 'No support ticket older than 2 hours sits unresolved during business hours.'",
     "Add a Stop Rule: 'Halt and escalate if confidence in resolution path < 0.7 OR after 3 failed agent attempts on a single ticket.'"
   ],
+  "coverage": {
+    "mode": "whole_file",
+    "chars_graded": 187,
+    "chars_total": 187,
+    "complete": true
+  },
   "next_chunk_token": null
 }
 ```
@@ -405,7 +426,7 @@ The build is shippable when ALL of the following are true. Do not ship at 90%.
 5. `generate_intent_spec_scaffold` returns the correct template variant for each of the 3 `kind` values.
 6. `assess_retrofit_level` returns a non-default reasoning string for at least 3 distinct existing skill files from `.claude/skills/`.
 7. XOR validation works: passing both `spec_text` and `file_path` to Tools 1 and 3 returns a clean error.
-8. Pagination on `audit_intent_spec` works: a 30k-character input returns a partial result with `next_chunk_token != null`, and a follow-up call resumes correctly.
+8. Pagination on `audit_intent_spec` works: a 30k-character input returns a partial result with `next_chunk_token != null`, and a follow-up call resumes correctly. *(Passed at the 2026-05-25 gate and retained as the historical record. Amended 2026-08-29: a 30k-character input with no window parameters is now graded whole and returns `next_chunk_token: null`. The resume behavior this criterion tested still holds when a window is requested explicitly.)*
 
 **Repository hygiene:**
 9. README opens with the single-sentence pitch from §1, contains a literal copy-paste-able `claude_desktop_config.json` block with absolute-path placeholder, lists all three tools with one-line contracts, and includes one screenshot of the server connected in Claude Desktop.
